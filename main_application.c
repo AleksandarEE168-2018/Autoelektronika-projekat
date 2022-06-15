@@ -47,7 +47,7 @@ void vApplicationIdleHook(void);
 
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
-const char trigger[] = "XYZ";
+const char trigger[] = "SENZOR\n";
 unsigned volatile t_point;
 
 /* RECEPTION DATA BUFFER */
@@ -83,7 +83,7 @@ static uint32_t prvProcessRXCInterrupt(void)
 
 
 
-void SerialSend_Task(void* pvParameters)
+void SerialSend_SensorTask(void* pvParameters)
 {
 	t_point = 0;
 	while (1)
@@ -92,42 +92,42 @@ void SerialSend_Task(void* pvParameters)
 			t_point = 0;
 		send_serial_character(COM_CH, trigger[t_point++]);
 		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
-		vTaskDelay(pdMS_TO_TICKS(200)); // kada se koristi vremenski delay }
+		vTaskDelay(pdMS_TO_TICKS(100)); // kada se koristi vremenski delay }
 	}
 }
 
 
-void SerialReceive_Task(void* pvParameters)
+void SerialReceive_SensorTask(void* pvParameters)
 {
 	float_t poruka = 0;
 	uint8_t cc = 0;
-	static uint8_t loca = 0;
+	static uint8_t brojac = 0;
 	float_t tmp = 0;
 	float_t sr_vrednost = 0;
 	while (1)
 	{
 		xSemaphoreTake(RXC_BinarySemaphore, portMAX_DELAY);// ceka na serijski prijemni interapt
 		get_serial_character(COM_CH, &cc);//ucitava primljeni karakter u promenjivu cc
-		printf("primio karakter: %u\n", (unsigned)cc);// prikazuje primljeni karakter u cmd prompt
+		//printf("primio karakter: %u\n", (unsigned)cc);// prikazuje primljeni karakter u cmd prompt
 
 		if (cc != 0x00 && cc != 0xff)
 		{
-			loca++;
+			brojac++;
 			tmp += (float_t)cc;
-			if (loca == 10)
+			if (brojac == 10)
 			{
 				tmp /= 10;
 				tmp *= 100;
 				sr_vrednost = tmp;
-				if (tmp < MIN)
+				if (sr_vrednost < MIN)
 				{
-					tmp = MIN;
+					sr_vrednost = MIN;
 				}
-				if (tmp > MAX)
+				if (sr_vrednost > MAX)
 				{
-					tmp = MAX;
+					sr_vrednost = MAX;
 				}
-				loca = 0;
+				brojac = 0;
 				printf("Vrednosti senzora: %.2f\n", sr_vrednost);
 				tmp = 0;
 			}
@@ -146,9 +146,9 @@ void main_demo(void)
 	BaseType_t task_created;
 
 	
-	xTaskCreate(SerialSend_Task, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
+	xTaskCreate(SerialSend_SensorTask, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
 	
-	xTaskCreate(SerialReceive_Task, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_REC_PRI, NULL);
+	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_REC_PRI, NULL);
 	r_point = 0;
 	
 	TBE_BinarySemaphore = xSemaphoreCreateBinary();
