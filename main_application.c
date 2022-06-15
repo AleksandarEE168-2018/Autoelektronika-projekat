@@ -20,11 +20,15 @@
 #define TASK_SERIAL_REC_PRI			(3+ tskIDLE_PRIORITY )
 #define	SERVICE_TASK_PRI		(1+ tskIDLE_PRIORITY )
 
+#define portINTERRUPT_SRL_OIC 5
+
 /* TASKS: FORWARD DECLARATIONS */
 void prvSerialReceiveTask_0(void* pvParameters);
 void prvSerialReceiveTask_1(void* pvParameters);
 
+
 SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
+SemaphoreHandle_t LED_INT_BinarySemaphore;
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
 #define COM_CH_0 (0)
@@ -39,6 +43,7 @@ void vApplicationIdleHook(void);
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
 const char trigger[] = "Pozdrav svima\n";
 unsigned volatile t_point;
+int per_TimerHandle;
 
 /* RECEPTION DATA BUFFER */
 #define R_BUF_SIZE (32)
@@ -52,38 +57,62 @@ static const unsigned char hexnum[] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D
 /* GLOBAL OS-HANDLES */
 
 /* TASk FUNCTION*/
-
-TaskFunction_t prvi_task_funkcija(void* pvParameter) {
-	int broj = (int)pvParameter;
-	int menjanje = 0;
-
-	while (1) {
-		select_7seg_digit(0);
-		select_7seg_digit(hexnum[menjanje]);
-
-		menjanje = !menjanje;
-
-		vTaskDelay(pdMS_TO_TICKS(1000));
-	}
-
+static void TimerCallback(TimerHandle_t xTimer)
+{
+	static uint8_t bdt = 0;
+	set_LED_BAR(2, 0x00);//sve LEDovke iskljucene
+	set_LED_BAR(3, 0xF0);// gornje 4 LEDovke ukljucene
+	set_LED_BAR(0, bdt); // ukljucena LED-ovka se pomera od dole ka gore
+	bdt <<= 1;
+	if (bdt == 0)
+		bdt = 1;
 }
+
+static uint32_t OnLED_ChangeInterrupt(void)
+{
+	BaseType_t xHigherPTW = pdFALSE;
+	xSemaphoreGiveFromISR(LED_INT_BinarySemaphore, &xHigherPTW);
+	portYIELD_FROM_ISR(xHigherPTW);
+}
+
+
+void led_bar_tsk(void* pvParameters)
+{
+	unsigned i;
+	uint8_t d;
+	while (1)
+	{
+		xSemaphoreTake(LED_INT_BinarySemaphore, portMAX_DELAY);
+		get_LED_BAR(1, &d);
+		i = 3;
+		do
+		{
+			i--;
+			select_7seg_digit(i);
+			set_7seg_digit(hexnum[d % 10]);
+			d /= 10;
+		} while (i > 0);
+	}
+}
+
+
 
 void main_demo(void)
 {
 	init_7seg_comm();
+	init_LED_comm();// inicijalizacija led bara
 	BaseType_t task_created;
 
-	task_created = xTaskCreate(
-		prvi_task_funkcija,
-		"hello world task",
-		configMINIMAL_STACK_SIZE,
-		(void*)12,
-		5,
-		NULL
-	);
-	if (task_created != pdPASS) {
-		printf("Neuspesno kreiranje taska");
-	}
+	per_TimerHandle = xTimerCreate("Timer", pdMS_TO_TICKS(500), pdTRUE, NULL, TimerCallback);
+	xTimerStart(per_TimerHandle, 0);
+	/* led bar TASK */
+	xTaskCreate(led_bar_tsk, "ST", configMINIMAL_STACK_SIZE, NULL, SERVICE_TASK_PRI, NULL);
+
+	/* ON INPUT CHANGE INTERRUPT HANDLER */
+	vPortSetInterruptHandler(portINTERRUPT_SRL_OIC, OnLED_ChangeInterrupt);
+	/* Create LED interrapt semaphore */
+	LED_INT_BinarySemaphore = xSemaphoreCreateBinary();
+
 	
 	vTaskStartScheduler();
 
