@@ -24,23 +24,21 @@
 #define	TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY  )
 #define TASK_SERIAL_REC_PRI			(3+ tskIDLE_PRIORITY )
 #define	SERVICE_TASK_PRI		(1+ tskIDLE_PRIORITY )
-
-/* TASKS: FORWARD DECLARATIONS */
-void prvSerialReceiveTask_0(void* pvParameters);
-void prvSerialReceiveTask_1(void* pvParameters);
+#define task_prioritet		( tskIDLE_PRIORITY + 4 )
 
 /*SEMAPHORE HANDLE*/
-SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
-SemaphoreHandle_t TBE_BinarySemaphore;
 SemaphoreHandle_t RXC_BinarySemaphore;
+
+QueueHandle_t myQueue = NULL;
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
 #define COM_CH_0 (0)
 #define COM_CH_1 (1)
 
 /* TASKS: FORWARD DECLARATIONS */
-void led_bar_tsk(void* pvParameters);
-void SerialSend_Task(void* pvParameters);
+void SerialSend_SensorTask(void* pvParameters);
+void SerialRecive_SensorTask(void* pvParameters);
+void QueueReceive_tsk(void* pvParameters);
 
 void vApplicationIdleHook(void);
 
@@ -62,14 +60,8 @@ static const unsigned char hexnum[] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D
 /* GLOBAL OS-HANDLES */
 static float_t MIN = 0;
 static float_t MAX = 1000;
+float_t sr_vrednost = 0;
 
-/* TBE - TRANSMISSION BUFFER EMPTY - INTERRUPT HANDLER */
-static uint32_t prvProcessTBEInterrupt(void)
-{
-	BaseType_t xHigherPTW = pdFALSE;
-	xSemaphoreGiveFromISR(TBE_BinarySemaphore, &xHigherPTW);
-	portYIELD_FROM_ISR(xHigherPTW);
-}
 /* RXC - RECEPTION COMPLETE - INTERRUPT HANDLER */
 static uint32_t prvProcessRXCInterrupt(void)
 {
@@ -103,7 +95,7 @@ void SerialReceive_SensorTask(void* pvParameters)
 	uint8_t cc = 0;
 	static uint8_t brojac = 0;
 	float_t tmp = 0;
-	float_t sr_vrednost = 0;
+	
 	while (1)
 	{
 		xSemaphoreTake(RXC_BinarySemaphore, portMAX_DELAY);// ceka na serijski prijemni interapt
@@ -128,14 +120,39 @@ void SerialReceive_SensorTask(void* pvParameters)
 					sr_vrednost = MAX;
 				}
 				brojac = 0;
-				printf("Vrednosti senzora: %.2f\n", sr_vrednost);
 				tmp = 0;
+
+				printf("Vrednosti senzora: %.2f\n", sr_vrednost);
+				xQueueSend(myQueue, &sr_vrednost, 0U); // salje podatak iz taska u red myQueue
+				
 			}
 			
 		}
 			
 	}
 }
+
+
+
+static void QueueReceive_tsk(void* pvParameters)
+{
+	float_t ulReceivedValue;
+	uint16_t a_num = 0;
+	uint16_t b_num = 0;
+	for (;; )
+	{
+		
+		xQueueReceive(myQueue, &ulReceivedValue, portMAX_DELAY); // task ceka u blokiranom stanju
+		    //dok ne dobije podatak iz Queue
+
+	
+			printf("Prosledjena vrednost sa senzora: %.2f\n", ulReceivedValue);
+		
+
+	}
+}
+
+
 
 
 void main_demo(void)
@@ -150,13 +167,16 @@ void main_demo(void)
 	
 	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_REC_PRI, NULL);
 	r_point = 0;
+
+	if (xTaskCreate(QueueReceive_tsk, "Rx", configMINIMAL_STACK_SIZE, NULL, task_prioritet, NULL) != pdPASS)
+		while (1); // task za primanje podataka iz reda
 	
-	TBE_BinarySemaphore = xSemaphoreCreateBinary();
-	
+
 	RXC_BinarySemaphore = xSemaphoreCreateBinary();
 
+	myQueue = xQueueCreate(2, sizeof(uint32_t));// kreiramo Queue duzine dva uint32_t
+
 	
-	vPortSetInterruptHandler(portINTERRUPT_SRL_TBE, prvProcessTBEInterrupt);
 	
 	vPortSetInterruptHandler(portINTERRUPT_SRL_RXC, prvProcessRXCInterrupt);
 
