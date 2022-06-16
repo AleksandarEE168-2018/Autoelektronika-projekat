@@ -23,11 +23,9 @@
 #define portINTERRUPT_SRL_OIC 5
 
 /* TASKS: FORWARD DECLARATIONS */
-void prvSerialReceiveTask_0(void* pvParameters);
-void prvSerialReceiveTask_1(void* pvParameters);
 
 
-SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
+
 SemaphoreHandle_t LED_INT_BinarySemaphore;
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
@@ -41,7 +39,7 @@ void SerialSend_Task(void* pvParameters);
 void vApplicationIdleHook(void);
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
-const char trigger[] = "Pozdrav svima\n";
+
 unsigned volatile t_point;
 int per_TimerHandle;
 
@@ -59,13 +57,13 @@ static const unsigned char hexnum[] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D
 /* TASk FUNCTION*/
 static void TimerCallback(TimerHandle_t xTimer)
 {
-	static uint8_t bdt = 0;
+	/*static uint8_t bdt = 0;
 	set_LED_BAR(2, 0x00);//sve LEDovke iskljucene
 	set_LED_BAR(3, 0xF0);// gornje 4 LEDovke ukljucene
 	set_LED_BAR(0, bdt); // ukljucena LED-ovka se pomera od dole ka gore
 	bdt <<= 1;
 	if (bdt == 0)
-		bdt = 1;
+		bdt = 1;*/
 }
 
 static uint32_t OnLED_ChangeInterrupt(void)
@@ -80,18 +78,51 @@ void led_bar_tsk(void* pvParameters)
 {
 	unsigned i;
 	uint8_t d;
+	set_LED_BAR(1, 0x00);
 	while (1)
 	{
 		xSemaphoreTake(LED_INT_BinarySemaphore, portMAX_DELAY);
-		get_LED_BAR(1, &d);
-		i = 3;
-		do
+		get_LED_BAR(0, &d);  //ocitavanje prvog stubca
+		printf("vrednost led bara: %d", d);
+
+		
+
+		if (d == 1)
 		{
-			i--;
-			select_7seg_digit(i);
-			set_7seg_digit(hexnum[d % 10]);
-			d /= 10;
-		} while (i > 0);
+			printf("prva brzina\n");
+			set_LED_BAR(1, 0x01);
+			select_7seg_digit(1);
+			set_7seg_digit(hexnum[1]);
+			select_7seg_digit(2);
+			set_7seg_digit(hexnum[1]);
+		}
+		else if (d == 3)
+		{
+			printf("druga brzina\n");
+			set_LED_BAR(1, 0x01);
+			select_7seg_digit(1);
+			set_7seg_digit(hexnum[2]);
+			select_7seg_digit(2);
+			set_7seg_digit(hexnum[1]);
+		}
+		else if (d == 7)
+		{
+			printf("treca brzina\n");
+			set_LED_BAR(1, 0x01);
+			select_7seg_digit(1);
+			set_7seg_digit(hexnum[3]);
+			select_7seg_digit(2);
+			set_7seg_digit(hexnum[1]);
+		}
+		else
+		{
+			printf("brisac iskljucen\n");
+			set_LED_BAR(1, 0x00);
+			select_7seg_digit(1);
+			set_7seg_digit(hexnum[0]);
+			select_7seg_digit(2);
+			set_7seg_digit(hexnum[0]);
+		}
 	}
 }
 
