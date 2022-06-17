@@ -19,25 +19,27 @@
 
 
 /* TASK PRIORITIES */
-#define	TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY  )
-#define TASK_SERIAL_REC_PRI			(3+ tskIDLE_PRIORITY )
-#define	SERVICE_TASK_PRI		(1+ tskIDLE_PRIORITY )
-#define task_prioritet		( tskIDLE_PRIORITY + 4 )
+#define TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY )
+#define	TASK_SENSOR_SEND_PRI		(2 + tskIDLE_PRIORITY )
+#define TASK_SENSOR_REC_PRI			(3 + tskIDLE_PRIORITY )
+#define	SERVICE_TASK_PRI			(1 + tskIDLE_PRIORITY )
+#define task_prioritet			    (4 + tskIDLE_PRIORITY )
 
 
 /*SEMAPHORE HANDLE*/
 SemaphoreHandle_t RXC_BinarySemaphore;
+SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
+SemaphoreHandle_t TBE_BinarySemaphore;
 
 QueueHandle_t myQueue = NULL;
 
 /* TASKS: FORWARD DECLARATIONS */
 
-SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
-SemaphoreHandle_t TBE_BinarySemaphore;
+
 
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
-#define COM_CH (0)
+
 #define COM_CH_0 (0)
 #define COM_CH_1 (1)
 
@@ -45,6 +47,7 @@ SemaphoreHandle_t TBE_BinarySemaphore;
 void SerialSend_SensorTask(void* pvParameters);
 void SerialRecive_SensorTask(void* pvParameters);
 void QueueReceive_tsk(void* pvParameters);
+void SerialSend_Task(void* pvParameters);
 
 void vApplicationIdleHook(void);
 
@@ -57,6 +60,7 @@ const char trigger[] = "SENZOR\n";
 const char trigger1[] = "Pozdrav svima manuel brzina 1, nivo kise slaba kisa\n";
 
 unsigned volatile t_point;
+unsigned volatile t_point1;
 
 /* RECEPTION DATA BUFFER */
 #define R_BUF_SIZE (32)
@@ -93,6 +97,28 @@ static uint32_t prvProcessTBEInterrupt(void)
 
 /* TASk FUNCTION*/
 
+void SerialSend_Task(void* pvParameters)
+{
+	t_point1 = 0;
+	while (1)
+	{
+		if (t_point1 > (uint16_t)((uint16_t)sizeof(trigger1) - (uint16_t)1)) {
+			t_point1 = (uint16_t)0;
+		}
+
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point1]) != pdTRUE) {
+
+		}
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point1++] + (uint8_t)1) != pdTRUE) {
+
+		}
+		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
+		vTaskDelay(pdMS_TO_TICKS(200)); // kada se koristi vremenski delay 
+
+	}
+}
+
+
 
 
 
@@ -103,9 +129,9 @@ void SerialSend_SensorTask(void* pvParameters)
 	{
 		if (t_point > (sizeof(trigger) - 1))
 			t_point = 0;
-		send_serial_character(COM_CH, trigger[t_point++]);
+		send_serial_character(COM_CH_0, trigger[t_point++]);
 		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
-		vTaskDelay(pdMS_TO_TICKS(100)); // kada se koristi vremenski delay }
+		vTaskDelay(pdMS_TO_TICKS(200)); // kada se koristi vremenski delay }
 	}
 }
 
@@ -120,7 +146,7 @@ void SerialReceive_SensorTask(void* pvParameters)
 	while (1)
 	{
 		xSemaphoreTake(RXC_BinarySemaphore, portMAX_DELAY);// ceka na serijski prijemni interapt
-		get_serial_character(COM_CH, &cc);//ucitava primljeni karakter u promenjivu cc
+		get_serial_character(COM_CH_0, &cc);//ucitava primljeni karakter u promenjivu cc
 		//printf("primio karakter: %u\n", (unsigned)cc);// prikazuje primljeni karakter u cmd prompt
 
 		if (cc != 0x00 && cc != 0xff)
@@ -172,40 +198,21 @@ static void QueueReceive_tsk(void* pvParameters)
 }
 
 
-void SerialSend_Task(void* pvParameters)
-{
-	t_point = 0;
-	while (1)
-	{
-		if (t_point > (uint16_t)((uint16_t)sizeof(trigger1) - (uint16_t)1)) {
-			t_point = (uint16_t)0;
-		}
 
-		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point]) != pdTRUE) {
-
-		}
-		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point++] + (uint8_t)1) != pdTRUE) {
-
-		}
-		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
-		vTaskDelay(pdMS_TO_TICKS(100)); // kada se koristi vremenski delay 
-
-	}
-}
 
 
 void main_demo(void)
 {
-	init_serial_uplink(COM_CH); // inicijalizacija serijske TX na kanalu 0
-	init_serial_downlink(COM_CH);// inicijalizacija serijske TX na kanalu 0
+	init_serial_uplink(COM_CH_0); // inicijalizacija serijske TX na kanalu 0
+	init_serial_downlink(COM_CH_0);// inicijalizacija serijske TX na kanalu 0
 	init_serial_uplink(COM_CH_1);
 	init_7seg_comm();
-	BaseType_t task_created;
+	
 
 	
-	xTaskCreate(SerialSend_SensorTask, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
+	xTaskCreate(SerialSend_SensorTask, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_SEND_PRI, NULL);
 	
-	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_REC_PRI, NULL);
+	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_REC_PRI, NULL);
 	r_point = 0;
 
 	/* SERIAL TRANSMITTER TASK */
