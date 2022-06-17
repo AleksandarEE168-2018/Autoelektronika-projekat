@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-=======
+
 /* Standard includes. */
 #include <stdio.h>
 #include <conio.h>
@@ -25,7 +24,7 @@
 #define	TASK_SENSOR_SEND_PRI		(2 + tskIDLE_PRIORITY )
 #define TASK_SENSOR_REC_PRI			(3 + tskIDLE_PRIORITY )
 #define	SERVICE_TASK_PRI			(1 + tskIDLE_PRIORITY )
-#define task_prioritet			    (4 + tskIDLE_PRIORITY )
+#define queue_prioritet			    (4 + tskIDLE_PRIORITY )
 
 
 /*SEMAPHORE HANDLE*/
@@ -35,30 +34,23 @@ SemaphoreHandle_t TBE_BinarySemaphore;
 
 QueueHandle_t myQueue = NULL;
 
-/* TASKS: FORWARD DECLARATIONS */
-
-
-
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
-
 #define COM_CH_0 (0)
 #define COM_CH_1 (1)
+
 
 /* TASKS: FORWARD DECLARATIONS */
 void SerialSend_SensorTask(void* pvParameters);
 void SerialRecive_SensorTask(void* pvParameters);
 void QueueReceive_tsk(void* pvParameters);
 void SerialSend_Task(void* pvParameters);
-
 void vApplicationIdleHook(void);
 
 
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
-
 const char trigger[] = "SENZOR\n";
-
 const char trigger1[] = "Pozdrav svima manuel brzina 1, nivo kise slaba kisa\n";
 
 unsigned volatile t_point;
@@ -211,7 +203,7 @@ void main_demo(void)
 	init_7seg_comm();
 	
 
-	
+	/*TASKOVI ZA SENZOR*/
 	xTaskCreate(SerialSend_SensorTask, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_SEND_PRI, NULL);
 	
 	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_REC_PRI, NULL);
@@ -220,7 +212,7 @@ void main_demo(void)
 	/* SERIAL TRANSMITTER TASK */
 	xTaskCreate(SerialSend_Task, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
 
-	if (xTaskCreate(QueueReceive_tsk, "Rx", configMINIMAL_STACK_SIZE, NULL, task_prioritet, NULL) != pdPASS)
+	if (xTaskCreate(QueueReceive_tsk, "Rx", configMINIMAL_STACK_SIZE, NULL, queue_prioritet, NULL) != pdPASS)
 		while (1); // task za primanje podataka iz reda
 	
 	TBE_BinarySemaphore = xSemaphoreCreateBinary();
@@ -242,4 +234,4 @@ void vApplicationIdleHook(void) {
 
 	//idleHookCounter++;
 }
->>>>>>> senzor_kise
+
