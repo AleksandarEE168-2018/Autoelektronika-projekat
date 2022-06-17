@@ -17,8 +17,6 @@
 /* Hardware simulator utility functions */
 #include "HW_access.h"
 
-/* SERIAL SIMULATOR CHANNEL TO USE */
-#define COM_CH (0)
 
 /* TASK PRIORITIES */
 #define	TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY  )
@@ -26,12 +24,20 @@
 #define	SERVICE_TASK_PRI		(1+ tskIDLE_PRIORITY )
 #define task_prioritet		( tskIDLE_PRIORITY + 4 )
 
+
 /*SEMAPHORE HANDLE*/
 SemaphoreHandle_t RXC_BinarySemaphore;
 
 QueueHandle_t myQueue = NULL;
 
+/* TASKS: FORWARD DECLARATIONS */
+
+SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
+SemaphoreHandle_t TBE_BinarySemaphore;
+
+
 /* SERIAL SIMULATOR CHANNEL TO USE */
+#define COM_CH (0)
 #define COM_CH_0 (0)
 #define COM_CH_1 (1)
 
@@ -45,7 +51,11 @@ void vApplicationIdleHook(void);
 
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
+
 const char trigger[] = "SENZOR\n";
+
+const char trigger1[] = "Pozdrav svima manuel brzina 1, nivo kise slaba kisa\n";
+
 unsigned volatile t_point;
 
 /* RECEPTION DATA BUFFER */
@@ -71,7 +81,18 @@ static uint32_t prvProcessRXCInterrupt(void)
 }
 
 
+
+/* TBE - TRANSMISSION BUFFER EMPTY - INTERRUPT HANDLER */
+static uint32_t prvProcessTBEInterrupt(void)
+{
+	BaseType_t xHigherPTW = pdFALSE;
+	xSemaphoreGiveFromISR(TBE_BinarySemaphore, &xHigherPTW);
+	portYIELD_FROM_ISR(xHigherPTW);
+}
+
+
 /* TASk FUNCTION*/
+
 
 
 
@@ -141,24 +162,43 @@ static void QueueReceive_tsk(void* pvParameters)
 	uint16_t b_num = 0;
 	for (;; )
 	{
-		
+
 		xQueueReceive(myQueue, &ulReceivedValue, portMAX_DELAY); // task ceka u blokiranom stanju
-		    //dok ne dobije podatak iz Queue
+			//dok ne dobije podatak iz Queue
 
-	
-			printf("Prosledjena vrednost sa senzora: %.2f\n", ulReceivedValue);
-		
 
+		printf("Prosledjena vrednost sa senzora: %.2f\n", ulReceivedValue);
 	}
 }
 
 
+void SerialSend_Task(void* pvParameters)
+{
+	t_point = 0;
+	while (1)
+	{
+		if (t_point > (uint16_t)((uint16_t)sizeof(trigger1) - (uint16_t)1)) {
+			t_point = (uint16_t)0;
+		}
+
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point]) != pdTRUE) {
+
+		}
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger1[t_point++] + (uint8_t)1) != pdTRUE) {
+
+		}
+		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
+		vTaskDelay(pdMS_TO_TICKS(100)); // kada se koristi vremenski delay 
+
+	}
+}
 
 
 void main_demo(void)
 {
 	init_serial_uplink(COM_CH); // inicijalizacija serijske TX na kanalu 0
 	init_serial_downlink(COM_CH);// inicijalizacija serijske TX na kanalu 0
+	init_serial_uplink(COM_CH_1);
 	init_7seg_comm();
 	BaseType_t task_created;
 
@@ -168,10 +208,13 @@ void main_demo(void)
 	xTaskCreate(SerialReceive_SensorTask, "SRx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_REC_PRI, NULL);
 	r_point = 0;
 
+	/* SERIAL TRANSMITTER TASK */
+	xTaskCreate(SerialSend_Task, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
+
 	if (xTaskCreate(QueueReceive_tsk, "Rx", configMINIMAL_STACK_SIZE, NULL, task_prioritet, NULL) != pdPASS)
 		while (1); // task za primanje podataka iz reda
 	
-
+	TBE_BinarySemaphore = xSemaphoreCreateBinary();
 	RXC_BinarySemaphore = xSemaphoreCreateBinary();
 
 	myQueue = xQueueCreate(2, sizeof(uint32_t));// kreiramo Queue duzine dva uint32_t
@@ -180,10 +223,10 @@ void main_demo(void)
 	
 	vPortSetInterruptHandler(portINTERRUPT_SRL_RXC, prvProcessRXCInterrupt);
 
-
 	vTaskStartScheduler();
 
 	for (;;) {}
+
 }
 
 void vApplicationIdleHook(void) {
