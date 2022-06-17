@@ -12,8 +12,6 @@
 /* Hardware simulator utility functions */
 #include "HW_access.h"
 
-/* SERIAL SIMULATOR CHANNEL TO USE */
-#define COM_CH (0)
 
 /* TASK PRIORITIES */
 #define	TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY  )
@@ -21,10 +19,9 @@
 #define	SERVICE_TASK_PRI		(1+ tskIDLE_PRIORITY )
 
 /* TASKS: FORWARD DECLARATIONS */
-void prvSerialReceiveTask_0(void* pvParameters);
-void prvSerialReceiveTask_1(void* pvParameters);
 
 SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
+SemaphoreHandle_t TBE_BinarySemaphore;
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
 #define COM_CH_0 (0)
@@ -37,7 +34,7 @@ void SerialSend_Task(void* pvParameters);
 void vApplicationIdleHook(void);
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
-const char trigger[] = "Pozdrav svima\n";
+const char trigger[] = "Pozdrav svima manuel brzina 1, nivo kise slaba kisa\n";
 unsigned volatile t_point;
 
 /* RECEPTION DATA BUFFER */
@@ -51,40 +48,55 @@ static const unsigned char hexnum[] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D
 
 /* GLOBAL OS-HANDLES */
 
+
+/* TBE - TRANSMISSION BUFFER EMPTY - INTERRUPT HANDLER */
+static uint32_t prvProcessTBEInterrupt(void)
+{
+	BaseType_t xHigherPTW = pdFALSE;
+	xSemaphoreGiveFromISR(TBE_BinarySemaphore, &xHigherPTW);
+	portYIELD_FROM_ISR(xHigherPTW);
+}
+
+
 /* TASk FUNCTION*/
 
-TaskFunction_t prvi_task_funkcija(void* pvParameter) {
-	int broj = (int)pvParameter;
-	int menjanje = 0;
 
-	while (1) {
-		select_7seg_digit(0);
-		select_7seg_digit(hexnum[menjanje]);
+void SerialSend_Task(void* pvParameters)
+{
+	t_point = 0;
+	while (1)
+	{
+		if (t_point > (uint16_t)((uint16_t)sizeof(trigger) - (uint16_t)1)) {
+			t_point = (uint16_t)0;
+		}
 
-		menjanje = !menjanje;
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger[t_point]) != pdTRUE) {
 
-		vTaskDelay(pdMS_TO_TICKS(1000));
+		}
+		if (send_serial_character((uint8_t)1, (uint8_t)trigger[t_point++] + (uint8_t)1) != pdTRUE) {
+
+		}
+		//xSemaphoreTake(TBE_BinarySemaphore, portMAX_DELAY);// kada se koristi predajni interapt
+		vTaskDelay(pdMS_TO_TICKS(100)); // kada se koristi vremenski delay 
 	}
-
 }
+
+
 
 void main_demo(void)
 {
+	init_serial_uplink(COM_CH_1);
 	init_7seg_comm();
 	BaseType_t task_created;
 
-	task_created = xTaskCreate(
-		prvi_task_funkcija,
-		"hello world task",
-		configMINIMAL_STACK_SIZE,
-		(void*)12,
-		5,
-		NULL
-	);
-	if (task_created != pdPASS) {
-		printf("Neuspesno kreiranje taska");
-	}
+	TBE_BinarySemaphore = xSemaphoreCreateBinary();
+
+
+	/* SERIAL TRANSMITTER TASK */
+	xTaskCreate(SerialSend_Task, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
 	
+	
+
 	vTaskStartScheduler();
 
 	for (;;) {}
