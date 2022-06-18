@@ -33,7 +33,7 @@ SemaphoreHandle_t RXC_BinarySemaphore;
 SemaphoreHandle_t RXC_BS_0, RXC_BS_1;
 SemaphoreHandle_t TBE_BinarySemaphore;
 
-QueueHandle_t myQueue = NULL;
+static QueueHandle_t myQueue;
 
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
@@ -191,10 +191,11 @@ static void prvSerialReceiveTask_1(void* pvParameters)
 {
 	uint8_t rezim = 'A';
 	uint8_t cc;
-	uint16_t  cnt = 0, broj[3] = { 0,0,0 }, niz[3] = { 100,10,1 };
+	uint16_t  cnt = 0, niz[3] = { 100,10,1 };
+	uint16_t  broj[3] = { 0,0,0 };
 	uint16_t broj1 = 0;
 	uint16_t uslov = 0, prom = 0;
-	uint16_t i, j;
+	//uint16_t i, j;
 	char tmp0 = '\0', tmp1 = '\0', tmp2 = '\0', tmp3 = '\0';
 
 	while (1) 
@@ -219,7 +220,7 @@ static void prvSerialReceiveTask_1(void* pvParameters)
 				printf("UNICOM1: OK\nUNICOM1: MANUELNO\n");
 			}
 
-			atoi(values); //string to inthk
+			atoi(values); //string to inth
 			switch (tmp3) 
 			{
 			case 1:  
@@ -319,6 +320,11 @@ void main_demo(void)
 	init_serial_uplink(COM_CH_1);
 	init_serial_downlink(COM_CH_1);
 	init_7seg_comm();
+	
+	myQueue = xQueueCreate(10, sizeof(myQueue));
+	if (myQueue == NULL) {
+
+	}
 	
 
 	/*TASKOVI ZA SENZOR*/
