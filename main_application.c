@@ -24,7 +24,8 @@
 #define	TASK_SENSOR_SEND_PRI		(2 + tskIDLE_PRIORITY )
 #define TASK_SENSOR_REC_PRI			(3 + tskIDLE_PRIORITY )
 #define	SERVICE_TASK_PRI			(1 + tskIDLE_PRIORITY )
-#define queue_prioritet			    (4 + tskIDLE_PRIORITY )
+#define queue_prioritet			    (5 + tskIDLE_PRIORITY )
+#define TASK_MODE_PRI               (4 + tskIDLE_PRIORITY )
 
 
 /*SEMAPHORE HANDLE*/
@@ -46,6 +47,7 @@ void SerialRecive_SensorTask(void* pvParameters);
 void QueueReceive_tsk(void* pvParameters);
 void SerialSend_Task(void* pvParameters);
 void vApplicationIdleHook(void);
+void SerialRecive_ModeTask(void* pvParameters);
 
 
 
@@ -211,6 +213,8 @@ void main_demo(void)
 
 	/* SERIAL TRANSMITTER TASK */
 	xTaskCreate(SerialSend_Task, "STx", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
+
+	xTaskCreate(SerialRecive_ModeTask, "SRMx", configMINIMAL_STACK_SIZE, NULL, TASK_MODE_PRI, NULL);
 
 	if (xTaskCreate(QueueReceive_tsk, "Rx", configMINIMAL_STACK_SIZE, NULL, queue_prioritet, NULL) != pdPASS)
 		while (1); // task za primanje podataka iz reda
