@@ -20,7 +20,7 @@
 
 
 /* TASK PRIORITIES */
-#define TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY )
+//#define TASK_SERIAL_SEND_PRI		(2 + tskIDLE_PRIORITY )
 #define	TASK_SENSOR_SEND_PRI		(2 + tskIDLE_PRIORITY )
 #define TASK_SENSOR_REC_PRI			(3 + tskIDLE_PRIORITY )
 #define TASK_SERIAL_REC_PRI			(3 + tskIDLE_PRIORITY )
@@ -32,7 +32,7 @@
 void SerialSend_SensorTask(void* pvParameters);
 void SerialReceive_SensorTask(void* pvParameters);
 void prvSerialReceiveTask_1(void* pvParameters);
-void QueueReceive_tsk(void* pvParameters);
+//void QueueReceive_tsk(void* pvParameters);
 void SerialSend_Task(void* pvParameters);
 void vApplicationIdleHook(void);
 
@@ -53,10 +53,15 @@ static uint16_t volatile t_point1;
 
 
 /* TRASNMISSION DATA - CONSTANT IN THIS APPLICATION */
-const char trigger[20] = "SENZOR\n";
-const char trigger1[30] = "PROVERA\n";
-uint8_t values[] = "";
+static char trigger[20] = "POZDRAV\n";
+static char trigger1[30] = "";
+static char ispisr = 'A';
+static float_t minn = (float_t)0;
+static float_t maxx = (float_t)1000;
+char values[3] = "";
 uint16_t values_int = 0;
+char cc_to_str[2] = { '0', '\0' };
+uint16_t  ispisn[3] = { 0,0,0 };
 
 
 /* RECEPTION DATA BUFFER */
@@ -163,7 +168,7 @@ void SerialReceive_SensorTask(void* pvParameters)// receive task 0
 				tmp = 0;
 
 				printf("Vrednosti senzora: %.2f\n", sr_vrednost);
-				xQueueSend(myQueue, &sr_vrednost, 0U); // salje podatak iz taska u red myQueue
+				xQueueSend(myQueue, &sr_vrednost, 0); // salje podatak iz taska u red myQueue
 				
 			}
 			
@@ -203,37 +208,27 @@ void SerialSend_Task(void* pvParameters)
 /*RECEIVE  TASK KANAL 1*/
 static void prvSerialReceiveTask_1(void* pvParameters) 
 {
+	printf("UNICOM1: OK\nUNICOM1: MANUELNO\n");
 	uint8_t rezim = 'A';
 	uint8_t cc;
-	uint16_t  cnt = 0, niz[3] = { 100,10,1 };
-	uint16_t  broj[3] = { 0,0,0 };
-	uint16_t broj1 = 0;
-	uint16_t uslov = 0, prom = 0;
-	//uint16_t i, j;
+
+
+
 	char tmp0 = '\0', tmp1 = '\0', tmp2 = '\0', tmp3 = '\0';
 
-	while (1) 
+	while (1)
 	{
-		
-		if (xSemaphoreTake(RXC_BS_1, portMAX_DELAY) != pdTRUE) {
 
-		}
-		if (get_serial_character(COM_CH_1, &cc) != pdTRUE) {
+		xSemaphoreTake(RXC_BS_1, portMAX_DELAY);
+		get_serial_character(COM_CH_1, &cc);
 
-		}
-		printf("%c ",cc);
-	
-		
-		if (cc == (uint8_t)'C') 
+		if (cc == (uint8_t)'C')
 		{
-			printf("Stanje c ");
 			tmp0 = 'C';
-		
 		}
 
 		else if ((cc == (uint8_t)'R') && (tmp0 == 'C'))
 		{
-			printf("Stanje CR ");
 			if (rezim == 'A')
 			{
 				printf("UNICOM1: OK\nUNICOM1: AUTOMATSKI\n");
@@ -242,48 +237,52 @@ static void prvSerialReceiveTask_1(void* pvParameters)
 			{
 				printf("UNICOM1: OK\nUNICOM1: MANUELNO\n");
 			}
-
-			values_int= (uint16_t)atoi((char)values); //string to inth
-			switch (tmp3) 
+			ispisr = rezim;
+			values_int = (uint16_t)atoi(values); //string to inth
+			printf(" * Uneo si %d * ", values_int);
+			switch (tmp3)
 			{
-			case 1:  
-				broj[0] = values_int;
-			break;
+			case 1:
+
+				ispisn[0] = values_int;
+				break;
 			case 2:
-				broj[1] = values_int;
-			break;
+
+				ispisn[1] = values_int;
+				break;
 			case 3:
-				broj[2] = values_int;
-			break;
-		
+
+				ispisn[2] = values_int;
+				break;
+
 			}
 
+			printf("%d, %d, %d ", ispisn[0], ispisn[1], ispisn[2]);
 			tmp0 = 0;
 			tmp1 = 0;
 			tmp2 = 0;
 			tmp3 = 0;
+			values[0] = '\0';
 		}
 
 
 		else if (cc == (uint8_t)'N')
 		{
-			printf("Stanje N ");
 			tmp1 = 'N';
 		}
 
 		else if ((cc == (uint8_t)'K') && (tmp1 == 'N'))
 		{
-			printf("Stanje nk ");
-			printf("uneo si\n");
 			tmp2 = 'K';
 		}
 
 		else if (((cc == (uint8_t)49) || (cc == (uint8_t)50) || (cc == (uint8_t)51)) && (tmp1 == 'N') && (tmp2 == 'K'))
 		{
-			printf("uneo si\n");
-			tmp2 = 'K';
+			tmp1 = '0';
+			tmp2 = '0';
+
 			if (cc == (uint8_t)49)
-			{	
+			{
 				tmp3 = 1;
 			}
 			else if (cc == (uint8_t)50)
@@ -292,34 +291,33 @@ static void prvSerialReceiveTask_1(void* pvParameters)
 			}
 			else if (cc == (uint8_t)51)
 			{
+
 				tmp3 = 3;
 			}
 
 		}
 
-		else if (cc == (uint8_t)'A') 
+		else if (cc == (uint8_t)'A')
 		{
-			printf("Stanje A ");
 			rezim = 'A';
 		}
 
-		else if (cc == (uint8_t)'M') 
+		else if (cc == (uint8_t)'M')
 		{
-			printf("Stanje m ");
 			rezim = 'M';
 		}
 
 		else
 		{
-			//strcat(values, &cc);
-			printf("Stanje ELSE ");
+			cc_to_str[0] = cc;
+			strcat(values, cc_to_str);
 		}
-		
+
 	}
 }
 
 
-static void QueueReceive_tsk(void* pvParameters)
+/*static void QueueReceive_tsk(void* pvParameters)
 {
 	float_t ulReceivedValue;
 	uint16_t a_num = 0;
@@ -335,7 +333,7 @@ static void QueueReceive_tsk(void* pvParameters)
 	}
 }
 
-
+*/
 
 
 
@@ -384,11 +382,11 @@ void main_demo(void)
 	
 
 	/* SERIAL TRANSMITTER 1 TASK */
-	xTaskCreate(SerialSend_Task, "STX1", configMINIMAL_STACK_SIZE, NULL, TASK_SERIAL_SEND_PRI, NULL);
+	xTaskCreate(SerialSend_Task, "STX1", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_SEND_PRI, NULL);
 
 	
 	// task za primanje podataka iz reda
-	xTaskCreate(QueueReceive_tsk, "QRx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_REC_PRI, NULL);
+	//xTaskCreate(QueueReceive_tsk, "QRx", configMINIMAL_STACK_SIZE, NULL, TASK_SENSOR_REC_PRI, NULL);
 
 	
 
