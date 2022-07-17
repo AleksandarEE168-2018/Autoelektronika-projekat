@@ -757,7 +757,8 @@ extern void main_demo(void)
 	xVraceno = xTaskCreate(SerialSend_Task, "STx", (uint16_t)((us_t)70), NULL, TASK_SERIAL_SEND_PRI, NULL);
 	if (xVraceno != pdPASS) {
 		//
-	}
+	} 
+
 
 	xVraceno = xTaskCreate(serialsend1_tsk, "stx1", (uint16_t)((us_t)70), NULL, TASK_SERIAL_SEND_PRI, NULL);
 	if (xVraceno != pdPASS) {
