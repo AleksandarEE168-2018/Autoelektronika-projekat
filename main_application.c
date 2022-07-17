@@ -367,6 +367,7 @@ void main_demo(void)
 	RXC_BinarySemaphore = xSemaphoreCreateBinary();
 
 
+	
 	myQueue = xQueueCreate(10, sizeof(myQueue));
 
 	
